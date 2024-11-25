@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "trad-eda"
+version = "0.1.0"
+description = "Trading Exploratory data analysis"
+authors = ["Beilak Aliev <beylak@yandex.ru>"]
+license = "MIT"
+readme = "README.md"
+package-mode = false
+packages = [{include = "*", from="eda_platform"}]
+
+
+[tool.poetry.dependencies]
+python = "^3.12"
+ccxt = "^4.4.33"
+backtrader = {extras = ["plotting"], version = "^1.9.78.123"}
+streamlit = "^1.40.1"
+pandas = "^2.2.3"
+altair = "^5.4.1"
+plotly = "^5.24.1"
+scipy = "^1.14.1"
+statsmodels = "^0.14.4"
+yfinance = "^0.2.50"
+aiomoex = "^2.1.2"
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.7.4"
+mypy = "^1.13.0"
+pytest = "^8.3.3"
+watchdog = "^6.0.0"
+black = "^24.10.0"
+
+
+[tool.poetry.group.research.dependencies]
+ipykernel = "^6.29.5"
+yfinance = "^0.2.50"
+matplotlib = "^3.9.2"
+nbformat = "^5.10.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
