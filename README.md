@@ -9,11 +9,18 @@
 docker build -t eda_plat -f Dockerfile .
 docker run -p 8080:8080 -it eda_plat
 ```
+
 or 
+
 ```commandline
 docker-compose up
 ```
 
+or
+
+```bash
+ streamlit run eda_platform/main.py
+```
 ### Run
 
 ```commandline

@@ -5,9 +5,7 @@ import plotly.graph_objects as go
 
 from data_providers.data_provider_ioc import DATA_PROVIDER
 
-
 exchanges_provider = DATA_PROVIDER.exchanges_provider
-
 
 def draw_line(ohlc: dict[str, pd.DataFrame], column):
     fig = go.Figure()
@@ -90,6 +88,7 @@ def draw_return_tabs(ohlc_return: dict[str, pd.DataFrame]):
         with tab:
             draw_df(ohlc_return, name)
             draw_heatmaps(ohlc_return, name)
+            draw_line(ohlc_return, name)
 
 
 def calc_returns(df: pd.DataFrame) -> pd.DataFrame:

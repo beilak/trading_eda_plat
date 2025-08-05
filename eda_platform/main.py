@@ -1,6 +1,7 @@
 import copy
 import typing as tp
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 import altair as alt
@@ -8,13 +9,18 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 from scipy.stats import normaltest
+from scipy import stats
 
 
 from cross_analyses_tab import draw_cross_analyses_tab
 
 from data_providers.data_provider_ioc import DATA_PROVIDER
 from data_providers.provider import MarketProvider
+from adtk.detector import QuantileAD
 
+from entropy import make_shannon_entropy
+
+# from eda_platform.entropy import make_shannon_entropy
 
 st.set_page_config(
     page_title="EDA platform",
@@ -105,7 +111,7 @@ def make_normal_test_text(df: pd.DataFrame, column):
     return text
 
 
-def make_column_hist(df: pd.DataFrame, column: str):
+def make_column_hist(df: pd.DataFrame, column: str) -> go.Figure:
     normal_text = make_normal_test_text(df, column)
 
     fig = px.histogram(df, x=column)
@@ -114,7 +120,7 @@ def make_column_hist(df: pd.DataFrame, column: str):
     return fig
 
 
-def make_column_boxplot(df: pd.DataFrame, column):
+def make_column_boxplot(df: pd.DataFrame, column) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Box(x=df[column], name=column))
     return fig
@@ -126,6 +132,22 @@ def make_return(df: pd.DataFrame, column: str):
     returns = returns.dropna()
     return returns[["date", column]]
 
+def make_rolling_volatility(returns, column: str, rolling_volatility_candle_count) -> go.Figure:
+    rolling_volatility = returns.copy()
+    rolling_volatility[column] = returns[column].rolling(window=rolling_volatility_candle_count).std() * np.sqrt(252)
+    rolling_volatility = rolling_volatility.dropna()
+    return rolling_volatility[["date", column]]
+
+
+def make_norm_distribution(df: pd.DataFrame, column: str) -> go.Figure:
+    # 3. Применяем преобразование к одному столбцу, например 'Close'
+    df_lock = df.copy()
+    df_lock[column], best_lambda = stats.boxcox(df_lock[column])
+    fig = px.histogram(df_lock, x=column)
+    fig.update_traces(textposition="inside", textfont_size=8)
+    fig.update_layout(title=f"BoxCox transformed distribution. λ = { best_lambda } [{column}]")
+
+    return fig
 
 def make_return_line(returns: pd.DataFrame, column: str):
     fig = px.line(returns, x="date", y=column, title=f"Return [{column}]")
@@ -148,26 +170,143 @@ def make_total_changes(df: pd.DataFrame, column):
     return fig
 
 
-def draw_ohlc_tabs(df: pd.DataFrame, context):
+def make_rolling_volatility_line(rolling_volatility, column: str) -> go.Figure:
+    fig = px.line(rolling_volatility, x="date", y=column, title=f"Rolling volatility [{column}]")
+    return fig
+
+
+def make_anomaly_detection(df: pd.DataFrame, column: str,  anomaly_detect_low_perc, anomaly_detect_high_perc) -> go.Figure:
+    price_series = df[["date",column]].copy()
+    price_series.date = pd.to_datetime(price_series.date)
+    price_series.set_index("date", inplace=True)
+
+    quantile_ad_price = QuantileAD(high=anomaly_detect_high_perc, low=anomaly_detect_low_perc)
+    # Находим аномалии
+    price_anomalies = quantile_ad_price.fit_detect(price_series)
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=price_series.index, y=price_series[column], mode="lines", name="TS"
+        )
+    )
+
+    anomaly_points = price_series[price_anomalies]
+
+    fig.add_trace(
+        go.Scatter(
+            x=anomaly_points.index,
+            y=anomaly_points[column],
+            mode="markers",
+            name="Аномалия",
+            marker=dict(color="red", size=10, symbol="x"),
+        )
+    )
+
+    fig.update_layout(
+        title="Anomaly detections",
+        xaxis_title="Date",
+        yaxis_title=f"[{column}]",
+        xaxis_rangeslider_visible=True,
+        template="plotly_white",  # Используем чистую белую тему !!!!
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+        ),
+    )
+    return fig
+
+
+
+
+
+
+
+def draw_ohlc_tabs(df: pd.DataFrame, context, selected_symbol):
     tabs = ["open", "high", "low", "close", "volume"]
 
     for tab, name in zip(context.tabs(tabs), tabs):
         tab_col_0, tab_col_1 = tab.columns((1, 1), gap="small")
 
+        tab_col_0.title(f"Distribution of [{name}]")
         tab_col_0.plotly_chart(make_column_hist(df, name), use_container_width=True)
+
+        tab_col_1.title(f"Distribution BoxPlot of [{name}]")
         tab_col_1.plotly_chart(make_column_boxplot(df, name), use_container_width=True)
 
         returns = make_return(df, name)
+        tab_col_0.title(f"Return [{name}]")
         tab_col_0.plotly_chart(
             make_return_line(returns, name), use_container_width=True
         )
+
+        tab_col_1.title(f"Distribution returns of [{name}]")
         tab_col_1.plotly_chart(
             make_column_hist(returns, name), use_container_width=True
+        )
+
+        try:
+            tab_col_1.plotly_chart(
+                make_norm_distribution(df, name), use_container_width=True
+            )
+        except Exception:
+            ...
+
+        rolling_volatility_candle_count = tab_col_0.number_input(
+            key=f"rolling_volatility_candle_count_{selected_symbol}_{name}",
+            label="Rolling volatility bur candle",
+            min_value=1,
+            max_value=365,
+            value=30,
+            step=1,
+        )
+        rolling_volatility = make_rolling_volatility(returns, name, rolling_volatility_candle_count)
+        tab_col_0.plotly_chart(
+            make_rolling_volatility_line(rolling_volatility, name), use_container_width=True
         )
 
         tab.plotly_chart(make_total_changes(df, name), use_container_width=True)
         # make_total_changes(df, name, tab)
 
+
+        anomaly_detect_low_perc = tab.number_input(
+            key=f"anomaly_detect_low_{selected_symbol}_{name}",
+            label="Low percentile",
+            min_value=0.00,
+            max_value=1.00,
+            value=0.05,
+            step=0.01,
+        )
+        anomaly_detect_high_perc = tab.number_input(
+            key=f"anomaly_detect_high_{selected_symbol}_{name}",
+            label="High percentile",
+            min_value=0.00,
+            max_value=1.00,
+            value=0.95,
+            step=0.01,
+        )
+        tab.plotly_chart(
+            make_anomaly_detection(df, name, anomaly_detect_low_perc, anomaly_detect_high_perc), use_container_width=True
+        )
+
+
+        shannon_entropy_window = tab.number_input(
+            key=f"shannon_entropy_window_{selected_symbol}_{name}",
+            label="Shannon entropy window",
+            min_value=2,
+            max_value=100,
+            value=20,
+            step=1,
+        )
+
+        entropy_line, entropy_hist, entropy_summ, render = make_shannon_entropy(selected_ohlcv, name, window=shannon_entropy_window)
+        tab.plotly_chart(entropy_line)
+        tab.plotly_chart(entropy_hist)
+        cols = tab.columns(len(entropy_summ))
+
+        for i, (idc, fig) in enumerate(entropy_summ.items()):
+            cols[i].plotly_chart(fig, use_container_width=True, key=f"idc_{selected_symbol}_{idc}_{name}")
+
+        render(tab)
 
 # col = st.columns((5, 1), gap='medium')
 
@@ -195,8 +334,9 @@ if selected_symbols:
         draw_ohlc_head(selected_ohlcv, tab_selected_symbol)
 
         tab_selected_symbol.markdown("---")
-        draw_ohlc_tabs(selected_ohlcv, tab_selected_symbol)
+        draw_ohlc_tabs(selected_ohlcv, tab_selected_symbol, selected_symbol)
         tab_selected_symbol.markdown("---")
+
 
     if len(selected_symbols) > 1:
         cross_analyses_tab = main_tabs[-1]
