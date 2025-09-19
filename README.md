@@ -2,6 +2,7 @@
 
 ## Descriptions
 EDA platform for trading information
+
 Features:
 - Load data from various sources (crypto, stock)
 - Visualize data (OHLC)
