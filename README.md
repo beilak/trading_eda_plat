@@ -1,8 +1,13 @@
-# EDA plat
+# EDA platform [Trading Info]
 
 ## Descriptions
-[ToDo]
-
+EDA platform for trading information
+Features:
+- Load data from various sources (crypto, stock)
+- Visualize data (OHLC)
+- Analyze data using statistical methods
+- Detect anomalies in data
+- Perform cross-analyses on data
 
 ### Install / RUN
 
