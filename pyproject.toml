@@ -10,7 +10,7 @@ packages = [{include = "*", from="eda_platform"}]
 
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.13"
 ccxt = "^4.4.33"
 backtrader = {extras = ["plotting"], version = "^1.9.78.123"}
 streamlit = "^1.40.1"
